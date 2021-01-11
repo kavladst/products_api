@@ -1,0 +1,46 @@
+version: '3'
+
+services:
+
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "products"
+    ports:
+      - 5432
+    volumes:
+      - ./sql_scripts/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: backend_image
+    command: ./api
+    restart: always
+    ports:
+      - 8000:8000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  test:
+    image: backend_image
+    environment:
+      DB_HOST: "db"
+      DB_PORT: "5432"
+      DB_USER: "postgres"
+      DB_PASSWORD: "postgres"
+      DB_NAME: "products"
+    entrypoint: >
+      sh -c "sleep 3
+      && CGO_ENABLED=0 go test ./cmd/api/test/"
+    depends_on:
+      - backend
